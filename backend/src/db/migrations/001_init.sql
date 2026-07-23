@@ -1,4 +1,4 @@
--- OfferFlow Database Schema
+-- 001_init: initial OfferFlow schema (users + applications)
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -8,13 +8,21 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TYPE application_status AS ENUM (
-  'Applied',
-  'OA',
-  'Interview',
-  'Offer',
-  'Rejected'
-);
+-- CREATE TYPE has no IF NOT EXISTS; guard it so this migration is safe to
+-- apply on a database that already had the schema created manually.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'application_status') THEN
+    CREATE TYPE application_status AS ENUM (
+      'Applied',
+      'OA',
+      'Interview',
+      'Offer',
+      'Rejected'
+    );
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS applications (
   id SERIAL PRIMARY KEY,
