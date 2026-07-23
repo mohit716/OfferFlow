@@ -1,11 +1,21 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
 import * as authService from '../services/authService';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
 
-router.post('/signup', async (req: Request, res: Response) => {
+// Stricter limit on auth endpoints to slow down credential brute-forcing.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later.' },
+});
+
+router.post('/signup', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
     const result = await authService.signup(email, password, name);
@@ -23,7 +33,7 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     const result = await authService.login(email, password);

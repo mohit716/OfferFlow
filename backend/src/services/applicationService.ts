@@ -26,12 +26,24 @@ export interface ApplicationFilters {
   company?: string;
   role?: string;
   status?: ApplicationStatus;
+  limit?: number;
+  offset?: number;
 }
+
+export interface PaginatedApplications {
+  applications: Application[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
 
 export async function getApplications(
   userId: number,
   filters: ApplicationFilters = {}
-): Promise<Application[]> {
+): Promise<PaginatedApplications> {
   const conditions = ['user_id = $1'];
   const params: (string | number)[] = [userId];
   let paramIndex = 2;
@@ -54,14 +66,32 @@ export async function getApplications(
     paramIndex++;
   }
 
+  const whereClause = conditions.join(' AND ');
+
+  // Clamp pagination inputs to safe bounds.
+  const limit = Math.min(
+    Math.max(1, filters.limit ?? DEFAULT_LIMIT),
+    MAX_LIMIT
+  );
+  const offset = Math.max(0, filters.offset ?? 0);
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM applications WHERE ${whereClause}`,
+    params
+  );
+  const total: number = countResult.rows[0].total;
+
+  const pageParams = [...params, limit, offset];
   const query = `
     SELECT * FROM applications
-    WHERE ${conditions.join(' AND ')}
+    WHERE ${whereClause}
     ORDER BY updated_at DESC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
   `;
 
-  const result = await pool.query(query, params);
-  return result.rows;
+  const result = await pool.query(query, pageParams);
+
+  return { applications: result.rows, total, limit, offset };
 }
 
 export async function getApplicationById(

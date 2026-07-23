@@ -19,17 +19,25 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
+    const parseNum = (value: unknown): number | undefined => {
+      if (typeof value !== 'string') return undefined;
+      const n = parseInt(value, 10);
+      return Number.isNaN(n) ? undefined : n;
+    };
+
     const filters = {
       company: req.query.company as string | undefined,
       role: req.query.role as string | undefined,
       status: req.query.status as ApplicationStatus | undefined,
+      limit: parseNum(req.query.limit),
+      offset: parseNum(req.query.offset),
     };
 
-    const applications = await applicationService.getApplications(
+    const result = await applicationService.getApplications(
       req.userId!,
       filters
     );
-    res.json({ applications });
+    res.json(result);
   } catch {
     res.status(500).json({ error: 'Failed to fetch applications' });
   }
