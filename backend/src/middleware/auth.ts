@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/db';
+import { UnauthorizedError } from '../errors';
 
 interface JwtPayload {
   userId: number;
@@ -8,13 +9,13 @@ interface JwtPayload {
 
 export function authMiddleware(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Authentication required' });
+    next(new UnauthorizedError('Authentication required'));
     return;
   }
 
@@ -25,6 +26,6 @@ export function authMiddleware(
     req.userId = decoded.userId;
     next();
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    next(new UnauthorizedError('Invalid or expired token'));
   }
 }

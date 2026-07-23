@@ -25,9 +25,19 @@ export const pool = new Pool({
   connectionString: databaseUrl,
 });
 
+const REFRESH_TOKEN_TTL_DAYS = parseInt(
+  process.env.REFRESH_TOKEN_TTL_DAYS || '30',
+  10
+);
+
 export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
   jwtSecret,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  // Short-lived access token (kept in memory on the client).
+  accessTokenTtl: process.env.ACCESS_TOKEN_TTL || '15m',
+  // Long-lived, revocable refresh token (httpOnly cookie).
+  refreshTokenTtlDays: REFRESH_TOKEN_TTL_DAYS,
+  refreshTokenTtlMs: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  isProduction: process.env.NODE_ENV === 'production',
 };

@@ -5,8 +5,12 @@ import { FilterBar } from '../components/FilterBar';
 import { ApplicationList } from '../components/ApplicationList';
 import { ApplicationForm } from '../components/ApplicationForm';
 
+const PAGE_SIZE = 20;
+
 export function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -21,18 +25,33 @@ export function ApplicationsPage() {
     setError('');
 
     try {
-      const filters: Record<string, string> = {};
-      if (companyFilter) filters.company = companyFilter;
-      if (roleFilter) filters.role = roleFilter;
-      if (statusFilter) filters.status = statusFilter;
+      const result = await api.getApplications({
+        company: companyFilter || undefined,
+        role: roleFilter || undefined,
+        status: statusFilter || undefined,
+        limit: PAGE_SIZE,
+        offset,
+      });
 
-      const { applications: data } = await api.getApplications(filters);
-      setApplications(data);
+      // If we paged past the end (e.g. after deleting the last item on a
+      // page), step back a page.
+      if (result.applications.length === 0 && offset > 0) {
+        setOffset((prev) => Math.max(0, prev - PAGE_SIZE));
+        return;
+      }
+
+      setApplications(result.applications);
+      setTotal(result.total);
     } catch {
       setError('Failed to load applications');
     } finally {
       setLoading(false);
     }
+  }, [companyFilter, roleFilter, statusFilter, offset]);
+
+  // Reset to the first page whenever filters change.
+  useEffect(() => {
+    setOffset(0);
   }, [companyFilter, roleFilter, statusFilter]);
 
   useEffect(() => {
@@ -43,6 +62,7 @@ export function ApplicationsPage() {
   const handleCreate = async (data: ApplicationFormData) => {
     await api.createApplication(data);
     setShowForm(false);
+    setOffset(0);
     await loadApplications();
   };
 
@@ -72,6 +92,11 @@ export function ApplicationsPage() {
     setRoleFilter('');
     setStatusFilter('');
   };
+
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(offset + applications.length, total);
+  const hasPrev = offset > 0;
+  const hasNext = offset + PAGE_SIZE < total;
 
   return (
     <div className="page">
@@ -133,12 +158,40 @@ export function ApplicationsPage() {
               <div className="spinner" />
             </div>
           ) : (
-            <ApplicationList
-              applications={applications}
-              onEdit={setEditingApp}
-              onDelete={handleDelete}
-              deletingId={deletingId}
-            />
+            <>
+              <ApplicationList
+                applications={applications}
+                onEdit={setEditingApp}
+                onDelete={handleDelete}
+                deletingId={deletingId}
+              />
+
+              {total > PAGE_SIZE && (
+                <div className="pagination">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={!hasPrev}
+                    onClick={() =>
+                      setOffset((prev) => Math.max(0, prev - PAGE_SIZE))
+                    }
+                  >
+                    ← Previous
+                  </button>
+                  <span className="pagination-info">
+                    {start}–{end} of {total}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={!hasNext}
+                    onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

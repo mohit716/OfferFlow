@@ -1,10 +1,28 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, CookieOptions } from 'express';
 import rateLimit from 'express-rate-limit';
-import { ZodError } from 'zod';
 import * as authService from '../services/authService';
+import * as refreshTokenService from '../services/refreshTokenService';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/asyncHandler';
+import { NotFoundError } from '../errors';
+import { config } from '../config/db';
 
 const router = Router();
+
+const REFRESH_COOKIE = 'refreshToken';
+
+const refreshCookieOptions: CookieOptions = {
+  httpOnly: true,
+  secure: config.isProduction,
+  sameSite: 'lax',
+  path: '/api/auth',
+  maxAge: config.refreshTokenTtlMs,
+};
+
+async function setRefreshCookie(res: Response, userId: number): Promise<void> {
+  const raw = await refreshTokenService.issueRefreshToken(userId);
+  res.cookie(REFRESH_COOKIE, raw, refreshCookieOptions);
+}
 
 // Stricter limit on auth endpoints to slow down credential brute-forcing.
 const authLimiter = rateLimit({
@@ -16,53 +34,67 @@ const authLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
 });
 
-router.post('/signup', authLimiter, async (req: Request, res: Response) => {
-  try {
+router.post(
+  '/signup',
+  authLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
     const { email, password, name } = req.body;
     const result = await authService.signup(email, password, name);
+    await setRefreshCookie(res, result.user.id);
     res.status(201).json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ error: error.errors[0].message });
-      return;
-    }
-    if (error instanceof Error && error.message === 'Email already registered') {
-      res.status(409).json({ error: error.message });
-      return;
-    }
-    res.status(500).json({ error: 'Failed to create account' });
-  }
-});
+  })
+);
 
-router.post('/login', authLimiter, async (req: Request, res: Response) => {
-  try {
+router.post(
+  '/login',
+  authLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
+    await setRefreshCookie(res, result.user.id);
     res.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ error: error.errors[0].message });
-      return;
-    }
-    if (error instanceof Error && error.message === 'Invalid email or password') {
-      res.status(401).json({ error: error.message });
-      return;
-    }
-    res.status(500).json({ error: 'Failed to login' });
-  }
-});
+  })
+);
 
-router.get('/me', authMiddleware, async (req: Request, res: Response) => {
-  try {
+// Exchange a valid refresh cookie for a new access token (and rotate the
+// refresh token). Used on page load and when an access token expires.
+router.post(
+  '/refresh',
+  asyncHandler(async (req: Request, res: Response) => {
+    const raw = req.cookies?.[REFRESH_COOKIE];
+    const { userId, newToken } =
+      await refreshTokenService.rotateRefreshToken(raw);
+
+    res.cookie(REFRESH_COOKIE, newToken, refreshCookieOptions);
+
+    const user = await authService.getUserById(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    res.json({ user, token: authService.signAccessToken(userId) });
+  })
+);
+
+router.post(
+  '/logout',
+  asyncHandler(async (req: Request, res: Response) => {
+    await refreshTokenService.revokeRefreshToken(req.cookies?.[REFRESH_COOKIE]);
+    res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+    res.status(204).send();
+  })
+);
+
+router.get(
+  '/me',
+  authMiddleware,
+  asyncHandler(async (req: Request, res: Response) => {
     const user = await authService.getUserById(req.userId!);
     if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
+      throw new NotFoundError('User not found');
     }
     res.json({ user });
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch user' });
-  }
-});
+  })
+);
 
 export default router;

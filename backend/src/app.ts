@@ -1,10 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { config } from './config/db';
 import { logger } from './config/logger';
+import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
 import applicationRoutes from './routes/applications';
 
@@ -20,6 +22,7 @@ app.use(helmet());
 
 app.use(cors({ origin: config.corsOrigin, credentials: true }));
 app.use(express.json({ limit: '100kb' }));
+app.use(cookieParser());
 
 // Global rate limit: protects every endpoint from abuse.
 // Skipped under tests so the suite isn't throttled.
@@ -43,5 +46,8 @@ app.use('/api/applications', applicationRoutes);
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
+
+// Central error handler (must be last, after routes).
+app.use(errorHandler);
 
 export default app;

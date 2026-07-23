@@ -5,74 +5,63 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
-import { api, ApiError } from '../api/client';
+import { api, setAccessToken } from '../api/client';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(
-    localStorage.getItem('token')
-  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
-      const storedToken = localStorage.getItem('token');
-      if (!storedToken) {
-        setLoading(false);
-        return;
-      }
-
+    // Restore the session on load using the httpOnly refresh cookie.
+    async function restore() {
       try {
-        const { user } = await api.getMe();
+        const { user, token } = await api.refresh();
+        setAccessToken(token);
         setUser(user);
-        setToken(storedToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          localStorage.removeItem('token');
-          setToken(null);
-        }
+      } catch {
+        setAccessToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     }
-
-    loadUser();
+    restore();
   }, []);
 
   const login = async (email: string, password: string) => {
-    const result = await api.login(email, password);
-    localStorage.setItem('token', result.token);
-    setToken(result.token);
-    setUser(result.user);
+    const { user, token } = await api.login(email, password);
+    setAccessToken(token);
+    setUser(user);
   };
 
   const signup = async (email: string, password: string, name: string) => {
-    const result = await api.signup(email, password, name);
-    localStorage.setItem('token', result.token);
-    setToken(result.token);
-    setUser(result.user);
+    const { user, token } = await api.signup(email, password, name);
+    setAccessToken(token);
+    setUser(user);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.logout();
+    } finally {
+      setAccessToken(null);
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

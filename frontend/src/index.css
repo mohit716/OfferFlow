@@ -516,3 +516,18 @@ a:hover {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.pagination-info {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  min-width: 8ch;
+  text-align: center;
+}
