@@ -26,5 +26,11 @@ export default defineConfig({
       JWT_SECRET: 'test-secret',
       JWT_EXPIRES_IN: '1h',
     },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/index.ts', 'src/scripts/**', 'src/db/**'],
+    },
   },
 });

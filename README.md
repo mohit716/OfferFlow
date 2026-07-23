@@ -1,6 +1,7 @@
 # OfferFlow — AI Interview Tracker
 
 [![CI](https://github.com/mohit716/OfferFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/mohit716/OfferFlow/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/mohit716/OfferFlow/branch/main/graph/badge.svg)](https://codecov.io/gh/mohit716/OfferFlow)
 
 A full-stack job application tracker built with React, Node.js, Express, TypeScript, and PostgreSQL. Track companies, roles, interview stages, and notes in one place.
 
@@ -12,6 +13,14 @@ A full-stack job application tracker built with React, Node.js, Express, TypeScr
 - **Status pipeline** — Applied, OA, Interview, Offer, Rejected
 - **Search & filter** — by company, role, or status
 - **Dashboard** — total applications and counts by status
+
+## Screenshots
+
+> Drop `dashboard.png` and `applications.png` into `docs/screenshots/` and
+> uncomment the lines below to display them.
+
+<!-- ![Dashboard](docs/screenshots/dashboard.png) -->
+<!-- ![Applications](docs/screenshots/applications.png) -->
 
 ## Project Structure
 
